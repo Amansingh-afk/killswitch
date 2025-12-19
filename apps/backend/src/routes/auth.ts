@@ -130,7 +130,7 @@ router.post('/login', async (req, res, next) => {
     const cookieOptions = {
       httpOnly: true,
       secure: isProduction,
-      sameSite: (isProduction ? 'lax' : 'lax') as const,
+      sameSite: 'lax' as const,
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/',
     };
