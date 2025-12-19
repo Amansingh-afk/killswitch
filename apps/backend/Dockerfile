@@ -42,7 +42,7 @@ COPY apps/backend ./apps/backend
 # Generate Prisma client with correct binary target for Debian
 WORKDIR /app/apps/backend
 RUN rm -rf node_modules/.prisma node_modules/@prisma/client || true && \
-    pnpm prisma:generate
+    pnpm prisma generate
 
 # Build
 RUN pnpm build
@@ -63,7 +63,7 @@ COPY apps/backend ./apps/backend
 # Generate Prisma client with correct binary target for Debian
 WORKDIR /app/apps/backend
 RUN rm -rf node_modules/.prisma node_modules/@prisma/client || true && \
-    pnpm prisma generate
+    pnpm prisma:generate
 
 WORKDIR /app
 
