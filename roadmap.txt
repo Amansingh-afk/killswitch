@@ -1,0 +1,247 @@
+Kill-Switch Risk Engine — MVP Roadmap (Node.js)
+=================================================
+
+TARGET: 10,000 users | 300-500ms latency | IST timezone (NSE/BSE only)
+
+TECH STACK: Node.js | PostgreSQL | Redis | Express/Fastify
+
+PHASE 1: Core Risk Engine (Single User)
+----------------------------------------
+Duration: 2-3 days
+
+Components:
+- src/dhan-client.js: REST API wrapper
+  * getPositions() → fetch positions from Dhan API
+  * getBalance() → fetch fund limit data
+  * closeAllPositions() → close all open positions
+  * triggerKillSwitch() → activate kill switch
+  * Uses: axios or node-fetch with connection pooling
+
+- src/mtm-calculator.js: Mark-to-market calculator
+  * Calculate total MTM from positions (unrealizedProfit)
+  * Calculate invested value (costPrice * netQty)
+  * Compute loss percentage
+
+- src/risk-rules.js: Risk evaluation
+  * Compare loss % vs threshold (default 2%)
+  * Return: TRIGGER | SAFE
+
+- src/worker.js: Main monitoring loop
+  * Poll every 2 seconds (setInterval or node-cron)
+  * Get positions → Calculate MTM → Evaluate risk → Kill if needed
+  * Console logging (winston/pino)
+
+Dependencies:
+- axios or node-fetch
+- dotenv (config)
+- winston or pino (logging)
+
+Output: Working single-user prototype with console logs
+
+
+PHASE 2: Persistence Layer
+---------------------------
+Duration: 2 days
+
+Database Setup:
+- PostgreSQL tables:
+  * users (user_id, dhan_client_id, access_token_encrypted, risk_threshold)
+  * daily_risk_state (user_id, trading_date, mtm, invested, loss_percent, kill_status)
+  * kill_events (user_id, trigger_mtm, trigger_loss_percent, execution_time, created_at)
+
+- Redis setup:
+  * user:{user_id}:daily_state → Fast read/write for daily state
+  * user:{user_id}:kill_lock → Distributed lock (TTL 30s)
+
+Components:
+- src/db/manager.js: PostgreSQL operations (pg library)
+- src/redis/manager.js: Redis operations (ioredis)
+- src/state/manager.js: Sync Redis ↔ PostgreSQL
+
+Dependencies:
+- pg (PostgreSQL client)
+- ioredis (Redis client)
+- node-cron (daily reset at 9:15 AM IST)
+
+Output: Database schema + state management working
+
+
+PHASE 3: Async Multi-User Engine
+---------------------------------
+Duration: 3-4 days
+
+Components:
+- src/workers/async-monitor.js: Async monitoring engine
+  * One Promise/async task per user
+  * Connection pooling (axios with keepAlive)
+  * Promise.all() or Promise.allSettled() for concurrent users
+  * Graceful error handling with retries
+
+- src/executors/kill-executor.js: Safe kill switch execution
+  * Acquire Redis lock before kill (SET NX EX)
+  * Check if already killed today
+  * Close positions → Activate kill switch
+  * Update state + log event
+  * Release lock
+
+- src/config/loader.js: Load active users from DB
+
+Key Features:
+- Rate limiting per user (bottleneck or p-limit)
+- Automatic daily state reset at market open (9:15 AM IST)
+- Distributed lock prevents double-kill
+- Idempotent kill execution
+- Cluster mode support (PM2) for horizontal scaling
+
+Dependencies:
+- p-limit or bottleneck (concurrency control)
+- pm2 (process manager, optional)
+
+Output: System monitoring 10k users concurrently
+
+
+PHASE 4: Price Updates (WebSocket OR Polling)
+----------------------------------------------
+Duration: 3-5 days
+
+Option A: If Dhan provides WebSocket
+- src/ws/dhan-ws-client.js: WebSocket connection manager (ws library)
+- Subscribe to position symbols
+- Update LTP in Redis on tick
+- Trigger MTM recalculation on price change
+- Auto-reconnect logic
+
+Option B: If no WebSocket (fallback)
+- src/polling/smart-poller.js: Optimized polling
+- Poll positions API every 2s (only users with active positions)
+- Cache positions in Redis (TTL 5s)
+- Reduce polling for users with no positions (30s interval)
+
+Dependencies:
+- ws (WebSocket client, if available)
+
+Output: Real-time or near-real-time MTM updates
+
+
+PHASE 5: Event-Driven Risk Evaluation
+--------------------------------------
+Duration: 2 days (only if WebSocket available)
+
+Components:
+- src/events/risk-handler.js: Event-driven risk checks
+- Price tick → Update MTM → Risk check → Kill if needed
+- Remove polling timers, use event triggers
+- EventEmitter pattern
+
+Output: Sub-500ms kill trigger latency
+
+
+HOSTING & INFRASTRUCTURE (MVP - Single VPS)
+============================================
+
+Production Setup:
+-----------------
+Single VPS hosting everything:
+- Node.js application (PM2 cluster mode)
+- PostgreSQL database (self-hosted)
+- Redis cache (self-hosted)
+- All on one server
+
+VPS Requirements:
+-----------------
+- RAM: 4GB minimum (8GB recommended for 10k users)
+- CPU: 2-4 cores
+- Storage: 40-60GB SSD
+- OS: Ubuntu 22.04 LTS
+
+VPS Provider Options:
+---------------------
+1. DigitalOcean Droplet:
+   - 4GB RAM / 2 vCPU: ~$24/month
+   - 8GB RAM / 4 vCPU: ~$48/month (recommended)
+
+2. Hetzner Cloud:
+   - CPX21 (4GB RAM / 3 vCPU): ~€5/month (~₹450/month)
+   - CPX31 (8GB RAM / 4 vCPU): ~€10/month (~₹900/month)
+
+3. AWS EC2:
+   - t3.medium (4GB RAM / 2 vCPU): ~$30/month
+   - t3.large (8GB RAM / 2 vCPU): ~$60/month
+
+Estimated Monthly Cost:
+-----------------------
+- Single VPS (4-8GB RAM): ~₹1,500-2,000/month
+- Domain (optional): ~₹1,000/year
+- TOTAL: ~₹1,500-2,000/month
+
+
+DEVELOPMENT COST ESTIMATE
+==========================
+
+Phase Breakdown:
+----------------
+Phase 1: Core Risk Engine
+- Development: 2-3 days
+- Testing: 0.5 day
+- Total: 2.5-3.5 days
+
+Phase 2: Persistence Layer
+- Development: 2 days
+- Testing: 0.5 day
+- Total: 2.5 days
+
+Phase 3: Async Multi-User Engine
+- Development: 3-4 days
+- Testing: 1 day
+- Total: 4-5 days
+
+Phase 4: Price Updates
+- Development: 3-5 days
+- Testing: 1 day
+- Total: 4-6 days
+
+Phase 5: Event-Driven (if WebSocket)
+- Development: 2 days
+- Testing: 0.5 day
+- Total: 2.5 days
+
+Additional:
+- Setup & DevOps: 1 day
+- Documentation: 0.5 day
+- Bug fixes & polish: 1.5 days
+
+TOTAL DEVELOPMENT TIME: 16-20 days (~3-4 weeks)
+
+Cost Estimate:
+--------------
+- Freelancer/Junior Developer: ₹2,500-3,000/day
+- Total cost: ₹40,000-60,000 (16-20 days)
+
+OR
+
+- Self-development: Time investment only
+- Total cost: ₹0 (if building yourself)
+
+
+MVP COMPLETE
+============
+
+Total Duration: ~3.5-4.5 weeks
+
+MVP Features:
+✅ Monitor 10k users concurrently
+✅ Daily loss % threshold (default 2%)
+✅ Automatic position closure on breach
+✅ Kill switch activation
+✅ Distributed lock (no double-kill)
+✅ Daily state persistence
+✅ Audit trail (kill events)
+✅ Automatic daily reset
+✅ Minimal cost infrastructure
+
+NOT in MVP:
+- Notifications (email/WhatsApp)
+- Dashboard API
+- Advanced risk rules
+- Multiple broker support
+- User-facing web interface

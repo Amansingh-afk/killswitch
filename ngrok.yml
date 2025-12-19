@@ -1,0 +1,12 @@
+version: "2"
+# Add your ngrok authtoken here (get it from https://dashboard.ngrok.com/get-started/your-authtoken)
+# Or run: ngrok config add-authtoken YOUR_AUTHTOKEN (recommended - stores in default config)
+authtoken: 1sn7fPzldopNAkHdj152MNclQFM_65nqAJNCyFdv1e9J4hYcY
+tunnels:
+  backend:
+    addr: 3001
+    proto: http
+  frontend:
+    addr: 3000
+    proto: http
+

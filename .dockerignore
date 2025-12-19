@@ -1,0 +1,16 @@
+node_modules
+npm-debug.log
+.next
+.git
+.gitignore
+.env
+.env.local
+.env*.local
+README.md
+.pnpm-store
+dist
+build
+coverage
+.vscode
+.idea
+

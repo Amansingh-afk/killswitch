@@ -1,0 +1,60 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.1.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  userId              String   @id @default(uuid()) @map("user_id")
+  email               String   @unique
+  passwordHash        String   @map("password_hash")
+  dhanClientId        String?  @map("dhan_client_id")
+  accessTokenEncrypted String?  @map("access_token_encrypted")
+  riskThreshold       Decimal  @default(2.00) @map("risk_threshold") @db.Decimal(5, 2)
+  killSwitchEnabled   Boolean  @default(true) @map("kill_switch_enabled")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  dailyRiskStates DailyRiskState[]
+  killEvents      KillEvent[]
+
+  @@map("users")
+}
+
+model DailyRiskState {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  tradingDate DateTime @map("trading_date") @db.Date
+  mtm         Decimal  @default(0) @db.Decimal(15, 2)
+  invested    Decimal  @default(0) @db.Decimal(15, 2)
+  lossPercent Decimal  @default(0) @map("loss_percent") @db.Decimal(5, 2)
+  killStatus  Boolean  @default(false) @map("kill_status")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@unique([userId, tradingDate])
+  @@map("daily_risk_state")
+}
+
+model KillEvent {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  triggerMtm        Decimal? @map("trigger_mtm") @db.Decimal(15, 2)
+  triggerLossPercent Decimal? @map("trigger_loss_percent") @db.Decimal(5, 2)
+  executionTime     DateTime @default(now()) @map("execution_time")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@map("kill_events")
+}
+
