@@ -41,6 +41,7 @@ COPY apps/backend ./apps/backend
 
 # Generate Prisma client with correct binary target for Debian
 WORKDIR /app/apps/backend
+ENV PRISMA_GENERATE_SKIP_AUTOINSTALL=1
 RUN rm -rf node_modules/.prisma node_modules/@prisma/client || true && \
     pnpm prisma generate
 
